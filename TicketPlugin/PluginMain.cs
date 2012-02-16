@@ -63,12 +63,29 @@ namespace TicketPlugin
 
         public void OnInitialize()
         {
+            bool tic = false;
+
+            foreach (Group group in TShock.Groups.groups)
+            {
+                if (group.Name != "superadmin")
+                {
+                    if (group.HasPermission("TicketList"))
+                        tic = true;
+                }
+            }
+
             List<string> permlist = new List<string>();
+            if (!tic)
+            {
+                permlist.Add("TicketList");
+                permlist.Add("TicketClear");
+            }
+
             TShock.Groups.AddPermissions("trustedadmin", permlist);
 
-            Commands.ChatCommands.Add(new Command(Hlpme, "hlpme", "Hlpme"));
-            Commands.ChatCommands.Add(new Command("TicketList", TicketList, "TicketList", "ticketlist", "Ticketlist", "ticketList"));
-            Commands.ChatCommands.Add(new Command("TicketClear", TicketClear, "TicketClear", "Ticketclear", "ticketclear", "ticketClear", "TicketsClear", "Ticketsclear", "ticketsclear", "ticketsClear"));
+            Commands.ChatCommands.Add(new Command(Hlpme, "hlpme", "ticket"));
+            Commands.ChatCommands.Add(new Command("TicketList", TicketList, "ticketlist", "ticlist"));
+            Commands.ChatCommands.Add(new Command("TicketClear", TicketClear, "ticketclear", "ticketsclear", "ticclear", "ticsclear"));
         }
 
         public void OnUpdate()
@@ -77,7 +94,7 @@ namespace TicketPlugin
 
         public void OnGreetPlayer(int who, HandledEventArgs e)
         {
-            TShock.Players[who].SendMessage("To write a Ticket, use /hlpme <Message>", Color.DarkCyan);
+            TShock.Players[who].SendMessage("To write a Complaint, use /hlpme ''<Message>''", Color.DarkCyan);
         }
 
         public void OnLeave(int ply)
@@ -109,6 +126,7 @@ namespace TicketPlugin
             }
         }
 
+        public static int linenumber = 1;
         public static void TicketList(CommandArgs args)
         {
             try
@@ -116,9 +134,11 @@ namespace TicketPlugin
                 StreamReader sw = new StreamReader("Tickets.txt", true);
                 while (sw.Peek() >= 0)
                 {
-                    args.Player.SendMessage(sw.ReadLine());
+                    args.Player.SendMessage(linenumber+"." +sw.ReadLine());
+                    linenumber++;
                 }
                 sw.Close();
+                linenumber = 1;
             }
             catch (Exception e)
             {
@@ -129,24 +149,44 @@ namespace TicketPlugin
                 Console.ResetColor();
             }
         }
+
         public static int i = 0;
         public static void TicketClear(CommandArgs args)
         {
-            try
+            switch (args.Parameters[0])
             {
-                File.Delete("Tickets.txt");
-                args.Player.SendMessage("All of the Tickets were cleared!", Color.DarkCyan);
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("{0} has cleared all of the tickets.", args.Player.Name);
-                Console.ResetColor();
-            }
-            catch (Exception e)
-            {
-                // Let the console know what went wrong, and tell the player that there was an error.
-                args.Player.SendMessage("Something went wrong when you tried to clear the tickets, contact an administrator when you can.", Color.Red);
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine(e.Message);
-                Console.ResetColor();
+                case "all": 
+                    try
+                    {
+                        File.Delete("Tickets.txt");
+                        args.Player.SendMessage("All of the Tickets were cleared!", Color.DarkCyan);
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("{0} has cleared all of the tickets.", args.Player.Name);
+                        Console.ResetColor();
+                    }
+                    catch (Exception e)
+                    {
+                        // Let the console know what went wrong, and tell the player that there was an error.
+                        args.Player.SendMessage("Something went wrong when you tried to clear the tickets, contact an administrator when you can.", Color.Red);
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine(e.Message);
+                        Console.ResetColor();
+                    }
+                    break;
+                case "id":
+                    if (args.Parameters.Count > 0)
+                    {
+                        int lineToDelete = Convert.ToInt32(args.Parameters[1]);
+                        var file = new List<string>(System.IO.File.ReadAllLines("Tickets.txt"));
+                        file.RemoveAt(lineToDelete);
+                        File.WriteAllLines("Tickets.txt", file.ToArray());
+                        args.Player.SendMessage(string.Format("Ticket ID {0} was cleared!", args.Parameters[1]), Color.DarkCyan);
+                    }
+                    else
+                    {
+                        args.Player.SendMessage("You have to state a ticket id! Syntax: /ticclear id <ticid>", Color.Red);
+                    }
+                    break;
             }
         }
     }
