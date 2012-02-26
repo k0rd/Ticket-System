@@ -59,6 +59,7 @@ namespace TicketPlugin
         public TicketPlugin(Main game)
             : base(game)
         {
+            Order = 10;
         }
 
         public void OnInitialize()
@@ -133,27 +134,30 @@ namespace TicketPlugin
 
                 return count;
             }
-
             return 0;
         }
 
         public static void Hlpme(CommandArgs args)
         {
-            if (args.Parameters.Count < 1)
+            if (args.Parameters.Count == 1 && args.Parameters[0].ToLower() == "help")
+            {
+                args.Player.SendMessage("To file a complaint about a bug or just a general issue that you have, do /hlpme <message>", Color.Cyan);
+            }
+            else if (args.Parameters.Count < 1)
             {
                 args.Player.SendMessage("You must enter a message!", Color.Red);
             }
-            else if (args.Parameters.Count > 1)
+            else if (args.Parameters.Count >= 1 || (args.Parameters.Count == 1 && args.Parameters[0].ToLower() != "help"))
             {
-                args.Player.SendMessage("You must put quotes around a multiple worded ticket. Like /hlpme ''word1 word2''", Color.Red);
-            }
-            else
-            {
+                string text = "";
+                foreach (string word in args.Parameters)
+                {
+                    text = text + word + " ";
+                }
                 string username = args.Player.Name;
-                string ticket = args.Parameters[0];
                 args.Player.SendMessage("Your Ticket has been sent!", Color.DarkCyan);
                 StreamWriter tw = new StreamWriter("Tickets.txt", true);
-                tw.WriteLine(string.Format("{0} - {1}: {2}", DateTime.Now, username, ticket));
+                tw.WriteLine(string.Format("{0} - {1}: {2}", DateTime.Now, username, text));
                 tw.Close();
             }
         }
@@ -163,13 +167,13 @@ namespace TicketPlugin
         {
             try
             {
-                StreamReader sw = new StreamReader("Tickets.txt", true);
-                while (sw.Peek() >= 0)
+                StreamReader sr = new StreamReader("Tickets.txt", true);
+                while (sr.Peek() >= 0)
                 {
-                    args.Player.SendMessage(linenumber+". " +sw.ReadLine());
+                    args.Player.SendMessage(linenumber+". " +sr.ReadLine());
                     linenumber++;
                 }
-                sw.Close();
+                sr.Close();
                 linenumber = 1;
             }
             catch (Exception e)
