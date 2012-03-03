@@ -14,6 +14,7 @@ namespace TicketPlugin
     [APIVersion(1, 11)]
     public class TicketPlugin : TerrariaPlugin
     {
+        public static List<Player> Players = new List<Player>();
         public override string Name
         {
             get { return "TicketSystem"; }
@@ -31,7 +32,7 @@ namespace TicketPlugin
 
         public override Version Version
         {
-            get { return Assembly.GetExecutingAssembly().GetName().Version; }
+            get { return new Version("0.9.7"); }
         }
 
         public override void Initialize()
@@ -95,6 +96,8 @@ namespace TicketPlugin
 
         public void OnGreetPlayer(int who, HandledEventArgs e)
         {
+            lock (Players)
+                Players.Add(new Player(who));
             string name = TShock.Players[who].Name;
             int count = NumberOfTickets(name);
             if (!TShock.Players[who].Group.HasPermission("TicketList"))
@@ -113,6 +116,17 @@ namespace TicketPlugin
 
         public void OnLeave(int ply)
         {
+            lock (Players)
+            {
+                for (int i = 0; i < Players.Count; i++)
+                {
+                    if (Players[i].Index == ply)
+                    {
+                        Players.RemoveAt(i);
+                        break; //Found the player, break.
+                    }
+                }
+            }
         }
 
         public void OnChat(messageBuffer msg, int ply, string text, HandledEventArgs e)
@@ -121,7 +135,7 @@ namespace TicketPlugin
 
         public static int NumberOfTickets(string name)
         {
-            if (name != null)
+            if (name != null && File.Exists("Tickets.txt"))
             {
                 int count = 0;
                 StreamReader sr = new StreamReader("Tickets.txt", true);
@@ -131,7 +145,6 @@ namespace TicketPlugin
                     count++;
                 }
                 sr.Close();
-
                 return count;
             }
             return 0;
@@ -139,7 +152,7 @@ namespace TicketPlugin
 
         public static void Hlpme(CommandArgs args)
         {
-            if (args.Parameters.Count == 1 && args.Parameters[0].ToLower() == "help")
+            if ((args.Parameters.Count == 1) && (args.Parameters[0].ToLower() == "help"))
             {
                 args.Player.SendMessage("To file a complaint about a bug or just a general issue that you have, do /hlpme <message>", Color.Cyan);
             }
@@ -147,18 +160,35 @@ namespace TicketPlugin
             {
                 args.Player.SendMessage("You must enter a message!", Color.Red);
             }
-            else if (args.Parameters.Count >= 1 || (args.Parameters.Count == 1 && args.Parameters[0].ToLower() != "help"))
+            else if ((args.Parameters.Count >= 1) || (args.Parameters.Count == 1 && args.Parameters[0].ToLower() != "help"))
             {
-                string text = "";
-                foreach (string word in args.Parameters)
+                try
                 {
-                    text = text + word + " ";
+                    string text = "";
+                    foreach (string word in args.Parameters)
+                    {
+                        text = text + word + " ";
+                    }
+                    string username = args.Player.Name;
+                    args.Player.SendMessage("Your Ticket has been sent!", Color.DarkCyan);
+                    StreamWriter tw = new StreamWriter("Tickets.txt", true);
+                    tw.WriteLine(string.Format("{0} - {1}: {2}", DateTime.Now, username, text));
+                    tw.Close();
+                    foreach (Player player in TicketPlugin.Players)
+                    {
+                        if (player.TSPlayer.Group.HasPermission(""))
+                        {
+                            player.TSPlayer.SendMessage(string.Format("{0} just submitted a ticket: {1}", args.Player.Name, text), Color.Cyan);
+                        }
+                    }
                 }
-                string username = args.Player.Name;
-                args.Player.SendMessage("Your Ticket has been sent!", Color.DarkCyan);
-                StreamWriter tw = new StreamWriter("Tickets.txt", true);
-                tw.WriteLine(string.Format("{0} - {1}: {2}", DateTime.Now, username, text));
-                tw.Close();
+                catch (Exception e)
+                {
+                    args.Player.SendMessage("Your ticket could not be sent, contact an administrator.", Color.Red);
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine(e.Message);
+                    Console.ResetColor();
+                }
             }
         }
 
@@ -170,7 +200,7 @@ namespace TicketPlugin
                 StreamReader sr = new StreamReader("Tickets.txt", true);
                 while (sr.Peek() >= 0)
                 {
-                    args.Player.SendMessage(linenumber+". " +sr.ReadLine());
+                    args.Player.SendMessage(linenumber+". " +sr.ReadLine(), Color.Cyan);
                     linenumber++;
                 }
                 sr.Close();
@@ -186,12 +216,11 @@ namespace TicketPlugin
             }
         }
 
-        public static int i = 0;
         public static void TicketClear(CommandArgs args)
         {
             switch (args.Parameters[0].ToLower())
             {
-                case "all": 
+                case "all":
                     try
                     {
                         File.Delete("Tickets.txt");
@@ -203,7 +232,7 @@ namespace TicketPlugin
                     catch (Exception e)
                     {
                         // Let the console know what went wrong, and tell the player that there was an error.
-                        args.Player.SendMessage("Something went wrong when you tried to clear the tickets, contact an administrator when you can.", Color.Red);
+                        args.Player.SendMessage("All the tickets are already cleared!", Color.Red);
                         Console.ForegroundColor = ConsoleColor.Red;
                         Console.WriteLine(e.Message);
                         Console.ResetColor();
@@ -214,7 +243,7 @@ namespace TicketPlugin
                     {
                         try
                         {
-                            int lineToDelete = Convert.ToInt32(args.Parameters[1]);
+                            int lineToDelete = (Convert.ToInt32(args.Parameters[1]) - 1);
                             var file = new List<string>(System.IO.File.ReadAllLines("Tickets.txt"));
                             file.RemoveAt(lineToDelete);
                             File.WriteAllLines("Tickets.txt", file.ToArray());
@@ -225,7 +254,7 @@ namespace TicketPlugin
                         }
                         catch (Exception e)
                         {
-                            args.Player.SendMessage("Something went wrong when you tried to clear the ticket, contact an administrator when you can.", Color.Red);
+                            args.Player.SendMessage("Not a valid ID.", Color.Red);
                             Console.ForegroundColor = ConsoleColor.Red;
                             Console.WriteLine(e.Message);
                             Console.ResetColor();
