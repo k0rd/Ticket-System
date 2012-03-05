@@ -32,7 +32,7 @@ namespace TicketPlugin
 
         public override Version Version
         {
-            get { return new Version("0.9.7"); }
+            get { return new Version(0, 9, 8); }
         }
 
         public override void Initialize()
@@ -88,6 +88,7 @@ namespace TicketPlugin
             Commands.ChatCommands.Add(new Command(Hlpme, "hlpme", "ticket"));
             Commands.ChatCommands.Add(new Command("TicketList", TicketList, "ticketlist", "ticlist"));
             Commands.ChatCommands.Add(new Command("TicketClear", TicketClear, "ticketclear", "ticketsclear", "ticclear", "ticsclear"));
+            Commands.ChatCommands.Add(new Command("TicketClear", TicStop, "ticketstop", "ticstop"));
         }
 
         public void OnUpdate()
@@ -152,15 +153,20 @@ namespace TicketPlugin
 
         public static void Hlpme(CommandArgs args)
         {
-            if ((args.Parameters.Count == 1) && (args.Parameters[0].ToLower() == "help"))
+            var FindMe = Player.GetPlayerByName(args.Player.Name);
+            if (FindMe.GetTicState() == Player.CanSubmitTickets.no)
+            {
+                args.Player.SendMessage("You cannot send tickets because you have had that privilege revoked.", Color.Red);
+            }
+            else if ((FindMe.GetTicState() == Player.CanSubmitTickets.yes) && ((args.Parameters.Count == 1) && (args.Parameters[0].ToLower() == "help")))
             {
                 args.Player.SendMessage("To file a complaint about a bug or just a general issue that you have, do /hlpme <message>", Color.Cyan);
             }
-            else if (args.Parameters.Count < 1)
+            else if ((FindMe.GetTicState() == Player.CanSubmitTickets.yes) && (args.Parameters.Count < 1))
             {
                 args.Player.SendMessage("You must enter a message!", Color.Red);
             }
-            else if ((args.Parameters.Count >= 1) || (args.Parameters.Count == 1 && args.Parameters[0].ToLower() != "help"))
+            else if ((FindMe.GetTicState() == Player.CanSubmitTickets.yes) && ((args.Parameters.Count >= 1) || (args.Parameters.Count == 1 && args.Parameters[0].ToLower() != "help")))
             {
                 try
                 {
@@ -176,7 +182,7 @@ namespace TicketPlugin
                     tw.Close();
                     foreach (Player player in TicketPlugin.Players)
                     {
-                        if (player.TSPlayer.Group.HasPermission(""))
+                        if (player.TSPlayer.Group.HasPermission("TicketList"))
                         {
                             player.TSPlayer.SendMessage(string.Format("{0} just submitted a ticket: {1}", args.Player.Name, text), Color.Cyan);
                         }
@@ -218,56 +224,108 @@ namespace TicketPlugin
 
         public static void TicketClear(CommandArgs args)
         {
-            switch (args.Parameters[0].ToLower())
+            if (args.Parameters.Count < 1)
             {
-                case "all":
-                    try
-                    {
-                        File.Delete("Tickets.txt");
-                        args.Player.SendMessage("All of the Tickets were cleared!", Color.DarkCyan);
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine(string.Format("{0} has cleared all of the tickets.", args.Player.Name));
-                        Console.ResetColor();
-                    }
-                    catch (Exception e)
-                    {
-                        // Let the console know what went wrong, and tell the player that there was an error.
-                        args.Player.SendMessage("All the tickets are already cleared!", Color.Red);
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine(e.Message);
-                        Console.ResetColor();
-                    }
-                    break;
-                case "id":
-                    if (args.Parameters.Count > 0)
-                    {
+                args.Player.SendMessage("Syntax: /ticclear <all/id> <id>", Color.Red);
+            }
+            else
+            {
+                switch (args.Parameters[0].ToLower())
+                {
+                    case "all":
                         try
                         {
-                            int lineToDelete = (Convert.ToInt32(args.Parameters[1]) - 1);
-                            var file = new List<string>(System.IO.File.ReadAllLines("Tickets.txt"));
-                            file.RemoveAt(lineToDelete);
-                            File.WriteAllLines("Tickets.txt", file.ToArray());
-                            args.Player.SendMessage(string.Format("Ticket ID {0} was cleared!", args.Parameters[1]), Color.DarkCyan);
+                            File.Delete("Tickets.txt");
+                            args.Player.SendMessage("All of the Tickets were cleared!", Color.DarkCyan);
                             Console.ForegroundColor = ConsoleColor.Red;
-                            Console.WriteLine(string.Format("{0} has cleared ticket ID: {1}", args.Player.Name, args.Parameters[1]));
+                            Console.WriteLine(string.Format("{0} has cleared all of the tickets.", args.Player.Name));
                             Console.ResetColor();
                         }
                         catch (Exception e)
                         {
-                            args.Player.SendMessage("Not a valid ID.", Color.Red);
+                            // Let the console know what went wrong, and tell the player that there was an error.
+                            args.Player.SendMessage("All the tickets are already cleared!", Color.Red);
                             Console.ForegroundColor = ConsoleColor.Red;
                             Console.WriteLine(e.Message);
                             Console.ResetColor();
                         }
-                    }
-                    else
+                        break;
+                    case "id":
+                        if (args.Parameters.Count > 0)
+                        {
+                            try
+                            {
+                                int lineToDelete = (Convert.ToInt32(args.Parameters[1]) - 1);
+                                var file = new List<string>(System.IO.File.ReadAllLines("Tickets.txt"));
+                                file.RemoveAt(lineToDelete);
+                                File.WriteAllLines("Tickets.txt", file.ToArray());
+                                args.Player.SendMessage(string.Format("Ticket ID {0} was cleared!", args.Parameters[1]), Color.DarkCyan);
+                                Console.ForegroundColor = ConsoleColor.Red;
+                                Console.WriteLine(string.Format("{0} has cleared ticket ID: {1}", args.Player.Name, args.Parameters[1]));
+                                Console.ResetColor();
+                            }
+                            catch (Exception e)
+                            {
+                                args.Player.SendMessage("Not a valid ID.", Color.Red);
+                                Console.ForegroundColor = ConsoleColor.Red;
+                                Console.WriteLine(e.Message);
+                                Console.ResetColor();
+                            }
+                        }
+                        else
+                        {
+                            args.Player.SendMessage("You have to state a ticket id! Syntax: /ticclear id <ticid>", Color.Red);
+                        }
+                        break;
+                    default:
+                        args.Player.SendMessage("Syntax: /ticclear <all/id> <id>", Color.Red);
+                        break;
+                }
+            }
+        }
+
+        public static void TicStop(CommandArgs args)
+        {
+            var FindPlayer = TShock.Utils.FindPlayer(args.Parameters[0]);
+            var FoundPlayer = FindPlayer[0];
+            var ListedPlayer = Player.GetPlayerByName(args.Parameters[0]);
+            if (args.Parameters.Count < 0)
+            {
+                args.Player.SendMessage("To stop someone from sending tickets, do /ticketstop <player name>", Color.DarkCyan);
+            }
+            else
+            {
+                try
+                {
+                    if (FindPlayer.Count == 1)
                     {
-                        args.Player.SendMessage("You have to state a ticket id! Syntax: /ticclear id <ticid>", Color.Red);
+                        if (ListedPlayer.GetTicState() == Player.CanSubmitTickets.yes)
+                        {
+                            ListedPlayer.SetTicState(Player.CanSubmitTickets.no);
+                            args.Player.SendMessage(string.Format("You have revoked the privileges of submitting tickets from {0}", FoundPlayer.Name), Color.Red);
+                        }
+                        else
+                        {
+                            ListedPlayer.SetTicState(Player.CanSubmitTickets.yes);
+                            args.Player.SendMessage(string.Format("You have given back the privileges of submitting tickets to {0}", FoundPlayer.Name), Color.Cyan);
+                        }
                     }
-                    break;
-                default:
-                    args.Player.SendMessage("Syntax: /ticclear <all/id> <id>", Color.Red);
-                    break;
+                    else if (FindPlayer.Count > 1)
+                    {
+                        args.Player.SendMessage(string.Format("There are more than 1 people with the name {0}", args.Parameters[0]), Color.Red);
+                    }
+                    else if (FindPlayer.Count < 1)
+                    {
+                        args.Player.SendMessage(string.Format("There is nobody with the name {0}", args.Parameters[0]), Color.Red);
+                    }
+                }
+                catch (Exception e)
+                {
+                    args.Player.SendMessage("Something went wrong", Color.Red);
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine(e.Message);
+                    Console.ResetColor();
+                }
             }
         }
     }
