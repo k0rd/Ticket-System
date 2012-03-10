@@ -27,12 +27,12 @@ namespace TicketPlugin
 
         public override string Description
         {
-            get { return "This plugin allows users in game to file tickets that admins and moderators can access."; }
+            get { return "This plugin allows users in game to file tickets (complaints) that admins and moderators can access."; }
         }
 
         public override Version Version
         {
-            get { return new Version(0, 9, 8); }
+            get { return new Version(0, 9, 9); }
         }
 
         public override void Initialize()
@@ -88,7 +88,7 @@ namespace TicketPlugin
             Commands.ChatCommands.Add(new Command(Hlpme, "hlpme", "ticket"));
             Commands.ChatCommands.Add(new Command("TicketList", TicketList, "ticketlist", "ticlist"));
             Commands.ChatCommands.Add(new Command("TicketClear", TicketClear, "ticketclear", "ticketsclear", "ticclear", "ticsclear"));
-            Commands.ChatCommands.Add(new Command("TicketClear", TicStop, "ticketstop", "ticstop"));
+            Commands.ChatCommands.Add(new Command("TicketClear", TicBan, "ticketban", "ticban"));
         }
 
         public void OnUpdate()
@@ -100,6 +100,8 @@ namespace TicketPlugin
             lock (Players)
                 Players.Add(new Player(who));
             string name = TShock.Players[who].Name;
+            string line;
+            var ListedPlayer = Player.GetPlayerByName(name);
             int count = NumberOfTickets(name);
             if (!TShock.Players[who].Group.HasPermission("TicketList"))
             {
@@ -109,9 +111,18 @@ namespace TicketPlugin
             {
                 TShock.Players[who].SendMessage("There are " + count + " tickets submitted, use /ticketlist to view them.", Color.Cyan);
             }
-            else if (TShock.Players[who].Group.Name == "superadmin")
+            if (File.Exists(@"tshock\bannedfromtics.txt"))
             {
-                TShock.Players[who].SendMessage("There are " + count + " tickets submitted, use /ticketlist to view them.", Color.Cyan);
+                using (StreamReader reader = new StreamReader(@"tshock\bannedfromtics.txt"))
+                {
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        if (String.Compare(line, name) == 0)
+                        {
+                            ListedPlayer.SetTicState(Player.CanSubmitTickets.no);
+                        }
+                    }
+                }
             }
         }
 
@@ -173,7 +184,7 @@ namespace TicketPlugin
                     string text = "";
                     foreach (string word in args.Parameters)
                     {
-                        text = text + word + " ";
+                        text += word + " ";
                     }
                     string username = args.Player.Name;
                     args.Player.SendMessage("Your Ticket has been sent!", Color.DarkCyan);
@@ -203,10 +214,10 @@ namespace TicketPlugin
         {
             try
             {
-                StreamReader sr = new StreamReader("Tickets.txt", true);
+                StreamReader sr = new StreamReader("Tickets.txt");
                 while (sr.Peek() >= 0)
                 {
-                    args.Player.SendMessage(linenumber+". " +sr.ReadLine(), Color.Cyan);
+                    args.Player.SendMessage(linenumber + ". " + sr.ReadLine(), Color.Cyan);
                     linenumber++;
                 }
                 sr.Close();
@@ -226,7 +237,10 @@ namespace TicketPlugin
         {
             if (args.Parameters.Count < 1)
             {
-                args.Player.SendMessage("Syntax: /ticclear <all/id> <id>", Color.Red);
+                args.Player.SendMessage("Syntax: /ticketclear <all/id> <id>", Color.DarkCyan);
+                args.Player.SendMessage("/ticketclear all: Removes all the tickets", Color.DarkCyan);
+                args.Player.SendMessage("/ticketclear id <id>: Removes one ticket ID based on the IDs listed with /ticketlist", Color.DarkCyan);
+                args.Player.SendMessage("Note: /ticketclear can be shortened to /ticclear", Color.DarkCyan);
             }
             else
             {
@@ -251,7 +265,7 @@ namespace TicketPlugin
                         }
                         break;
                     case "id":
-                        if (args.Parameters.Count > 0)
+                        if (args.Parameters.Count > 1)
                         {
                             try
                             {
@@ -274,57 +288,126 @@ namespace TicketPlugin
                         }
                         else
                         {
-                            args.Player.SendMessage("You have to state a ticket id! Syntax: /ticclear id <ticid>", Color.Red);
+                            args.Player.SendMessage("You have to state a ticket ID! Syntax: /ticclear id <ticID>", Color.Red);
                         }
                         break;
+                    case "help":
+                        args.Player.SendMessage("Syntax: /ticketclear <all/id> <id>", Color.DarkCyan);
+                        args.Player.SendMessage("/ticketclear all: Removes all the tickets", Color.DarkCyan);
+                        args.Player.SendMessage("/ticketclear id <id>: Removes one ticket ID based on the IDs listed with /ticketlist", Color.DarkCyan);
+                        args.Player.SendMessage("Note: /ticketclear can be shortened to /ticclear", Color.DarkCyan);
+                        break;
                     default:
-                        args.Player.SendMessage("Syntax: /ticclear <all/id> <id>", Color.Red);
+                        args.Player.SendMessage("Syntax: /ticketclear <all/id> <id>", Color.Red);
                         break;
                 }
             }
         }
 
-        public static void TicStop(CommandArgs args)
+        public static void TicBan(CommandArgs args)
         {
-            var FindPlayer = TShock.Utils.FindPlayer(args.Parameters[0]);
-            var FoundPlayer = FindPlayer[0];
-            var ListedPlayer = Player.GetPlayerByName(args.Parameters[0]);
-            if (args.Parameters.Count < 0)
+            int numberOfPeopleBanned = 1;
+            var FindPlayer = TShock.Utils.FindPlayer(args.Parameters[1]);
+            var FoundPlayer = FindPlayer[1];
+            var ListedPlayer = Player.GetPlayerByName(args.Parameters[1]);
+            if (args.Parameters.Count < 1 && args.Parameters.Count < 2)
             {
-                args.Player.SendMessage("To stop someone from sending tickets, do /ticketstop <player name>", Color.DarkCyan);
+                args.Player.SendMessage("Syntax: /ticketban <ban/unban/list> <player name/id>", Color.DarkCyan);
+                args.Player.SendMessage("/ticketban ban <player name>: stops the player from filing tickets", Color.DarkCyan);
+                args.Player.SendMessage("/ticketban unban <player id>: unbans a player only based on their ID, not their name. Use /ticban list to find out banned IDs", Color.DarkCyan);
+                args.Player.SendMessage("/ticketban list: lists players that are banned and their IDs", Color.DarkCyan);
+                args.Player.SendMessage("Note: /ticketban can be shortened to /ticban", Color.DarkCyan);
             }
             else
             {
-                try
+                switch (args.Parameters[0].ToLower())
                 {
-                    if (FindPlayer.Count == 1)
-                    {
-                        if (ListedPlayer.GetTicState() == Player.CanSubmitTickets.yes)
+                    case "ban":
+                        try
                         {
-                            ListedPlayer.SetTicState(Player.CanSubmitTickets.no);
-                            args.Player.SendMessage(string.Format("You have revoked the privileges of submitting tickets from {0}", FoundPlayer.Name), Color.Red);
+                            if (FindPlayer.Count == 1)
+                            {
+                                if (ListedPlayer.GetTicState() == Player.CanSubmitTickets.yes)
+                                {
+                                    ListedPlayer.SetTicState(Player.CanSubmitTickets.no);
+                                    args.Player.SendMessage(string.Format("You have revoked the privileges of submitting tickets from {0}", FoundPlayer.Name), Color.Red);
+                                    using (StreamWriter writer = new StreamWriter(@"tshock\bannedfromtics.txt"))
+                                    {
+                                        writer.WriteLine(FoundPlayer.Name);
+                                    }
+                                }
+                                else
+                                {
+                                    args.Player.SendMessage("This player already is banned from using tickets. If you want to give back the privilege, use /ticstop <playerID> (find banned IDs by doing /ticstop)", Color.Red);
+                                }
+                            }
+                            else if (FindPlayer.Count > 1)
+                            {
+                                args.Player.SendMessage(string.Format("There is more than 1 person with the name {0}", args.Parameters[1]), Color.Red);
+                            }
+                            else if (FindPlayer.Count < 1)
+                            {
+                                args.Player.SendMessage(string.Format("There is nobody with the name {0}", args.Parameters[1]), Color.Red);
+                            }
                         }
-                        else
+                        catch (Exception e)
                         {
-                            ListedPlayer.SetTicState(Player.CanSubmitTickets.yes);
-                            args.Player.SendMessage(string.Format("You have given back the privileges of submitting tickets to {0}", FoundPlayer.Name), Color.Cyan);
+                            args.Player.SendMessage("Something went wrong, contact an administrator when you can.", Color.Red);
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine(e.Message);
+                            Console.ResetColor();
                         }
-                    }
-                    else if (FindPlayer.Count > 1)
-                    {
-                        args.Player.SendMessage(string.Format("There are more than 1 people with the name {0}", args.Parameters[0]), Color.Red);
-                    }
-                    else if (FindPlayer.Count < 1)
-                    {
-                        args.Player.SendMessage(string.Format("There is nobody with the name {0}", args.Parameters[0]), Color.Red);
-                    }
-                }
-                catch (Exception e)
-                {
-                    args.Player.SendMessage("Something went wrong", Color.Red);
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine(e.Message);
-                    Console.ResetColor();
+                        break;
+                    case "unban":
+                        try
+                        {
+                            int PlayerToDelete = (Convert.ToInt32(args.Parameters[1]) - 1);
+                            var file = new List<string>(System.IO.File.ReadAllLines(@"tshock\bannedfromtics.txt"));
+                            file.RemoveAt(PlayerToDelete - 1);
+                            File.WriteAllLines(@"tshock\bannedfromtics.txt", file.ToArray());
+                            args.Player.SendMessage(string.Format("You have given back the privileges of submitting tickets to {0}, this will take affect when they next log in.", args.Parameters[1]), Color.Cyan);
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine(string.Format("{0} has unbanned player ID: {1}", args.Player.Name, args.Parameters[1]));
+                            Console.ResetColor();
+                        }
+                        catch (Exception e)
+                        {
+                            args.Player.SendMessage(string.Format("Cannot find player ID {0}", args.Parameters[1]), Color.Red);
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine(e.Message);
+                            Console.ResetColor();
+                        }
+                        break;
+                    case "list":
+                        try
+                        {
+                            StreamReader sr = new StreamReader(@"tshock\bannedfromtics.txt");
+                            while (sr.Peek() >= 0)
+                            {
+                                args.Player.SendMessage(numberOfPeopleBanned + ". " + sr.ReadLine(), Color.Cyan);
+                                numberOfPeopleBanned++;
+                            }
+                            sr.Close();
+                            numberOfPeopleBanned = 1;
+                        }
+                        catch (Exception e)
+                        {
+                            args.Player.SendMessage("Nobody is banned from using tickets.", Color.Red);
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine(e.Message);
+                            Console.ResetColor();
+                        }
+                        break;
+                    case "help":
+                        args.Player.SendMessage("Syntax: /ticketban <ban/unban/list> <player name/id>", Color.DarkCyan);
+                        args.Player.SendMessage("/ticketban ban <player name>: stops the player from filing tickets", Color.DarkCyan);
+                        args.Player.SendMessage("/ticketban unban <player id>: unbans a player only based on their ID, not their name. Use /ticban list to find out banned IDs", Color.DarkCyan);
+                        args.Player.SendMessage("/ticketban list: lists players that are banned and their IDs", Color.DarkCyan);
+                        args.Player.SendMessage("Note: /ticketban can be shortened to /ticban", Color.DarkCyan);
+                        break;
+                    default:
+                        args.Player.SendMessage("Syntax: /ticketban <ban/unban/list> <player name/id>", Color.Red);
+                        break;
                 }
             }
         }
