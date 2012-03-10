@@ -308,7 +308,7 @@ namespace TicketPlugin
         {
             int numberOfPeopleBanned = 1;
             var FindPlayer = TShock.Utils.FindPlayer(args.Parameters[1]);
-            var FoundPlayer = FindPlayer[1];
+            var FoundPlayer = FindPlayer[0];
             var ListedPlayer = Player.GetPlayerByName(args.Parameters[1]);
             if (args.Parameters.Count < 1 && args.Parameters.Count < 2)
             {
